@@ -5,9 +5,9 @@
 ██║  ██║██╔══██║╚════██║██╔══██║     ██║   ██║╚════██║                  
 ██████╔╝██║  ██║███████║██║  ██║     ╚██████╔╝███████║
 ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝      ╚═════╝ ╚══════╝
-Powered by Peanut-GB
+Powered by Peanut-GB```
 
-```Game Boy Emulator for ESP32 (CYD Board)
+Game Boy Emulator for ESP32 (CYD Board)
 *By Pratik Dash — [@TwinSailsStudios](https://github.com/TwinSailsStudios)*
 
 🌐 **[Project Website](https://twinsailsstudios.github.io/DASHOSGBEMULATOR/)** &nbsp;·&nbsp; ▶ **[Watch Demo](https://imgur.com/O46zO3Y)**
