@@ -1,0 +1,225 @@
+                  _______________________________
+                  |                             |
+                  |     OPTIMIZATION LIST       |
+                  |_____________________________|
+
+ -----------------------------------------------------------------------
+
+                           PROJECT OVERVIEW
+=========================================================================
+I am building DASH OS, which is a GameBoy (DMG) emulator on ESP32-32E hardware
+with the following stack: 
+
+Hardware Configuration:
+    • MCU: ESP32-D0WD-V3 @ 240MHz, 520KB SRAM (NO PSRAM) 
+    • Display: ST7796 480x320 TFT via HSPI @ 80MHz SPI 
+    • Storage: MicroSD via VSPI @ 25MHz (after negotiation from 400kHz init) 
+    • Input: 8BitDo Micro controller via Bluepad32 BLE stack 
+    • Emulator Core: peanut-gb (DMG only, no GBC support yet) 
+    • Toolchain: esp32-bluepad32 v4.1.0, GCC 8.4.0 
+Critical Constraints:
+    • Heap Budget: ~103KB contiguous at boot, ~92KB consumed by buffers, ~11KB remaining 
+    • No PSRAM: All data must fit in internal SRAM 
+    • Bluepad32 Conflict: Cannot use standard ESP32 BLE libraries (incompatible stacks) 
+    • GCC Quirk: Variables must be declared at top of function (C89-style) 
+    • TFT_eSPI Quirk: USE_HSPI_PORT causes internal byte-swap; pushColors(swap=true) also swaps (two swaps = cancel out, pass plain RGB565) 
+
+============================================================================================================================================================
+MEMORY LAYOUT (Current)
+// Total: ~92KB allocated before SD.begin()
+fbuf (framebuffer):     46KB  // 160×144×2 bytes RGB565
+bank0Cache (ROM):       16KB  // Always cached, bank 0
+bank1Cache (ROM):       16KB  // LRU cache for banks 1+
+cram (cartridge RAM):    8KB  // Save data
+gbp (emulator struct):   5KB  // peanut-gb state
+lbuf (line buffer):      1KB  // For 2x scaling
+==============================================================================
+
+                       COMPLETE OPTIMIZATION HISTORY                    
+
+==============================================================================
+
+1. SD Card Initalization Order - CRITICAL
+
+Problem: White screen crashes, and SD failures
+Root Cause: Bluepad32 BT stack allocates ~47KB before setup() runs, fragmenting heap.
+SD.begin() needs contiguous blocks for FAT buffers.
+
+Solution:
+
+// CORRECT BOOT ORDER:
+void setup() {
+  // 1. Malloc ALL large buffers FIRST (before heap fragments)
+  fbuf = (uint16_t*)malloc(GB_W * GB_H * 2);
+  bank0Cache = (uint8_t*)malloc(ROMBANK);
+  bank1Cache = (uint8_t*)malloc(ROMBANK);
+  cram = (uint8_t*)malloc(CRAM);
+  gbp = (struct gb_s*)malloc(sizeof(struct gb_s));
+  lbuf = (uint16_t*)malloc(GB_W * 2 * 2);
+  
+  // 2. SD.begin() SECOND (gets remaining contiguous blocks)
+  SD.begin(SD_CS, sdspi, 400000);  // Slow init
+  SD.end();
+  SD.begin(SD_CS, sdspi, 25000000); // Renegotiate to 25MHz
+  
+  // 3. TFT.init() THIRD
+  tft.init();
+  
+  // 4. Bluepad32 LAST (gets fragmented leftovers)
+  BP32.setup(&onConn, &onDisc);
+}
+
+Why This Works:
+  - Largest allocations happen when heap is pristine (no fragmentation)
+  - SD FAT LIBRARY can find contigous blocks in middle of heap
+  - Display init doesn't conflict with SD state machine
+
+Technical Detail: 
+After SW_CPU_RESET, Bluepad32 reinitalizes BT before setup() runs (in ardunios main()),
+leaving only  ~56KB instead of ~103KB. Allocating early captures the large block before
+BT fragments it.
+
+==================================================================================================
+
+2. SD Speed Negotiation
+Problem: 
+SD at 400kHz = 5OKB/s -> 16KB bank read = 330ms -> <2FPS
+
+Solution:
+SD.begin(SD_CS, sdspi, 400000);   // SD spec requires 400kHz for init
+SD.end();
+SD.begin(SD_CS, sdspi, 25000000); // Renegotiate to 25MHz
+
+Performance:
+  - 400kHz: 16KB = 330ms -> unusable
+  - 25MHz: ~5ms -> 3 bank switches = 15ms overhead per frame
+  - ROM fully cached in RAM: 0ms -> 60fps
+
+Why 25MHz? Balance of speed versus stability. 50MHz caused card detection failures. 20MHz/10Hz is
+a fallback for fussy cards
+
+===================================================================================================
+
+3. 2-Bank LRU Cache with Block Reads
+
+Problem:
+
+Byte-by-Byte SD reads = 450ms per frame (2FPS)
+
+Solution:
+
+IRAM_ATTR uint8_t gb_rom_read(struct gb_s *gb, const uint_fast32_t a) {
+  if(a < ROMBANK) return bank0Cache[a];  // Bank 0 always cached
+  
+  uint32_t base = (a / ROMBANK) * ROMBANK;
+  
+  // Check bank1 cache
+  if(base == bank1Base) {
+    bank1LRU = ++lruCounter;
+    return bank1Cache[a - base];
+  }
+  
+  // Cache miss - load entire 16KB bank at once
+  bank1Base = base;
+  bank1LRU = ++lruCounter;
+  romf.seek(base);
+  romf.read(bank1Cache, min((uint32_t)ROMBANK, romsz - base));
+  return bank1Cache[a - base];
+}
+
+Performance Improvment:
+12.8x speedup (450ms -> 35-67ms per frame)
+
+Why Block Reads Work:
+  - Single romf.read(16384) = one SD transaction (~5ms)
+  - Byte-by-Byte = 16384 SD transaction (~450ms)
+  - Gameboy code has spatial locality which reads seqential bytes
+
+=====================================================================================================
+
+4. Full Framebuffer Architecture
+
+Problem: Per-scanline SPI calls = 8-9 FPS (144 transactions per frame)
+Failed Attempt 1: Scanline-By-Scanline rendering
+
+// SLOW (8-9 FPS):
+void lcd_draw_line(..., uint8_t line) {
+  tft.setAddrWindow(GB_X, GB_Y + line, GB_W, 1);
+  tft.startWrite();
+  tft.pushColors(lbuf, 160, true);  // 144 separate SPI calls!
+  tft.endWrite();
+}
+
+Working Solution:
+
+// FAST (60 FPS):
+IRAM_ATTR void lcd_draw_line(..., uint8_t line) {
+  uint16_t *dst = fbuf + line * GB_W;
+  for(int x = 0; x < GB_W; x++) dst[x] = DMG[px[x] & 3];
+  // Zero SPI calls - pure RAM write
+}
+
+void pushFrame() {
+  tft.startWrite();
+  tft.setAddrWindow(gbX, gbY, GB_W, GB_H);
+  tft.pushColors(fbuf, GB_W * GB_H, true);  // ONE 46KB burst
+  tft.endWrite();
+}
+
+Why this works:
+
+  - CPU runs gb_run_frame() at full 240MHz with 0 SPI stalls
+  - Single 46KB SPI transfer after frame = ~4ms
+  - CPU only stalls once per frame instead of 144 times
+
+Critical Mistake I made:
+
+  After adding framebuffer, we broke it by looping:
+
+// WRONG - defeats framebuffer purpose:
+for(int y = 0; y < GB_H; y++)
+  tft.pushColors(fbuf + y * GB_W, GB_W, true);  // Still 144 calls!
+
+==================================================================================================
+
+5. IRAM_ATTR on Hot Path
+
+  IRAM_ATTR uint8_t gb_rom_read(struct gb_s *gb, const uint_fast32_t a)
+  IRAM_ATTR void lcd_draw_line(struct gb_s *gb, const uint8_t *px, const uint_fast8_t line)  
+
+Why: These functions are called thousands of times per frame. IRAM_ATTR puts them in fast
+Internal RAM instead of flash, eliminating cache misses.
+
+==================================================================================================
+
+6. Complier Optimizations
+
+#pragma GCC optimize("O3,unroll-loops,inline-functions,fast-math")
+#pragma GCC target("xtensa")
+
+Effect:
+  - Loop unrolling reduces branch overhead
+  - Function inlining eliminates call overhead
+  - Fast-math enables approximations (OK FOR EMULATOR)
+
+==================================================================================================
+
+7. Full ROM Cache (When possible)
+
+// On ROM load, try to cache entire ROM in RAM:
+uint32_t freeNow = ESP.getMaxAllocHeap();
+if(romsz <= freeNow - 16384) {
+  romCache = (uint8_t*)malloc(romsz);
+  romf.read(romCache, romsz);
+  romCached = true;
+}
+
+Performance:
+  - Small ROMs (EX: TETRIS 32KB): Fits entirely -> 60 FPS
+  - Medium ROMs (EX: SUPER MARIO LAND 64KB) falls back to 2-bank cache -> 30-50FPS
+  - Large ROMs (EX: KIRBY 128KB+) falls back to 2 bank cache -> 15-25FPS
+
+===================================================================================================
+
+  -
+// Remaining for SD + Bluepad32: ~11KB
