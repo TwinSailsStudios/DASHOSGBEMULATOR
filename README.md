@@ -1,4 +1,5 @@
-                                                                                                                                     
+```text
+[                                                                                                                                     
 DDDDDDDDDDDDD                  AAA                 SSSSSSSSSSSSSSS HHHHHHHHH     HHHHHHHHH          OOOOOOOOO        SSSSSSSSSSSSSSS 
 D::::::::::::DDD              A:::A              SS:::::::::::::::SH:::::::H     H:::::::H        OO:::::::::OO    SS:::::::::::::::S
 D:::::::::::::::DD           A:::::A            S:::::SSSSSS::::::SH:::::::H     H:::::::H      OO:::::::::::::OO S:::::SSSSSS::::::S
@@ -16,7 +17,7 @@ D:::::::::::::::DDA:::::A               A:::::A S::::::SSSSSS:::::SH:::::::H    
 D::::::::::::DDD A:::::A                 A:::::AS:::::::::::::::SS H:::::::H     H:::::::H        OO:::::::::OO   S:::::::::::::::SS 
 DDDDDDDDDDDDD   AAAAAAA                   AAAAAAASSSSSSSSSSSSSSS   HHHHHHHHH     HHHHHHHHH          OOOOOOOOO      SSSSSSSSSSSSSSS   
 
-POWERED BY PEANUT-GB
+POWERED BY PEANUT-GB]
 
 ### Game Boy Emulator for ESP32 (CYD Board)
 *By Pratik Dash — [@TwinSailsStudios](https://github.com/TwinSailsStudios)*
