@@ -5,6 +5,10 @@
 ██████╔╝██║  ██║███████║██║  ██║    ╚██████╔╝███████║
 ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝
 Powered by Peanut-GB
+
+
+
+
 ### Game Boy Emulator for ESP32 (CYD Board)
 *By Pratik Dash — [@TwinSailsStudios](https://github.com/TwinSailsStudios)*
 
