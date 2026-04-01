@@ -1,13 +1,22 @@
-#██████╗  █████╗ ███████╗██╗  ██╗     ██████╗ ███████╗
-#██╔══██╗██╔══██╗██╔════╝██║  ██║    ██╔═══██╗██╔════╝
-#██║  ██║███████║███████╗███████║    ██║   ██║███████╗
-#██║  ██║██╔══██║╚════██║██╔══██║    ██║   ██║╚════██║   
-#██████╔╝██║  ██║███████║██║  ██║    ╚██████╔╝███████║
-#╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝
-#Powered by Peanut-GB
+                                                                                                                                     
+DDDDDDDDDDDDD                  AAA                 SSSSSSSSSSSSSSS HHHHHHHHH     HHHHHHHHH          OOOOOOOOO        SSSSSSSSSSSSSSS 
+D::::::::::::DDD              A:::A              SS:::::::::::::::SH:::::::H     H:::::::H        OO:::::::::OO    SS:::::::::::::::S
+D:::::::::::::::DD           A:::::A            S:::::SSSSSS::::::SH:::::::H     H:::::::H      OO:::::::::::::OO S:::::SSSSSS::::::S
+DDD:::::DDDDD:::::D         A:::::::A           S:::::S     SSSSSSSHH::::::H     H::::::HH     O:::::::OOO:::::::OS:::::S     SSSSSSS
+  D:::::D    D:::::D       A:::::::::A          S:::::S              H:::::H     H:::::H       O::::::O   O::::::OS:::::S            
+  D:::::D     D:::::D     A:::::A:::::A         S:::::S              H:::::H     H:::::H       O:::::O     O:::::OS:::::S            
+  D:::::D     D:::::D    A:::::A A:::::A         S::::SSSS           H::::::HHHHH::::::H       O:::::O     O:::::O S::::SSSS         
+  D:::::D     D:::::D   A:::::A   A:::::A         SS::::::SSSSS      H:::::::::::::::::H       O:::::O     O:::::O  SS::::::SSSSS    
+  D:::::D     D:::::D  A:::::A     A:::::A          SSS::::::::SS    H:::::::::::::::::H       O:::::O     O:::::O    SSS::::::::SS  
+  D:::::D     D:::::D A:::::AAAAAAAAA:::::A            SSSSSS::::S   H::::::HHHHH::::::H       O:::::O     O:::::O       SSSSSS::::S 
+  D:::::D     D:::::DA:::::::::::::::::::::A                S:::::S  H:::::H     H:::::H       O:::::O     O:::::O            S:::::S
+  D:::::D    D:::::DA:::::AAAAAAAAAAAAA:::::A               S:::::S  H:::::H     H:::::H       O::::::O   O::::::O            S:::::S
+DDD:::::DDDDD:::::DA:::::A             A:::::A  SSSSSSS     S:::::SHH::::::H     H::::::HH     O:::::::OOO:::::::OSSSSSSS     S:::::S
+D:::::::::::::::DDA:::::A               A:::::A S::::::SSSSSS:::::SH:::::::H     H:::::::H      OO:::::::::::::OO S::::::SSSSSS:::::S
+D::::::::::::DDD A:::::A                 A:::::AS:::::::::::::::SS H:::::::H     H:::::::H        OO:::::::::OO   S:::::::::::::::SS 
+DDDDDDDDDDDDD   AAAAAAA                   AAAAAAASSSSSSSSSSSSSSS   HHHHHHHHH     HHHHHHHHH          OOOOOOOOO      SSSSSSSSSSSSSSS   
 
-
-
+POWERED BY PEANUT-GB
 
 ### Game Boy Emulator for ESP32 (CYD Board)
 *By Pratik Dash — [@TwinSailsStudios](https://github.com/TwinSailsStudios)*
