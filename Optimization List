@@ -422,3 +422,580 @@ Broken
   - 12.8x speedup from single optimization
 
 =====================================================================================================
+
+                                     CRITICAL QUESTIONS
+
+====================================================================================================
+
+1. DMA Overlap Architecture
+
+Goal: Overlap CPU emulation with SPI display update using DMA
+
+Current Flow (Sequential):
+
+gb_run_frame(gbp);      // ~12ms - CPU stalls during this
+pushFrame();            // ~4ms - SPI transfer blocks CPU
+// Total: 16ms per frame = 62.5 FPS max
+
+Desired Flow (Parallel):
+
+// Frame N:
+gb_run_frame(gbp);           // Render to fbuf[0]
+startDMA_pushFrame(fbuf[0]); // Non-blocking DMA transfer
+
+// Frame N+1:
+gb_run_frame(gbp);           // Render to fbuf[1] WHILE fbuf[0] is transferring
+waitDMA();                   // Only wait if DMA not done yet
+startDMA_pushFrame(fbuf[1]);
+
+Specfic Questions: 
+  1. How will you configure TFT_eSPI to use DMA on HSPI?
+  2. Do i need double-buffering? (2x46KB fbuf) or can I ping-pong with a single buffer?
+  3. What is the DMA callback mechanism to know when transfer completes?
+  4. Will DMA work with USE_HSPI_PORT and the byte-swap quirk?
+
+Try to create C++ implementation for:
+ 
+  void setupDMA();
+  void startDMA_pushFrame(uint16_t *buffer);
+  bool isDMAComplete();
+  void waitDMA();
+
+====================================================================================================
+
+2. Pre-fetch BUffer for Large ROMs
+
+Problem: ROMs > 256KB don't fit in RAM, SD seeks still bottleneck
+
+Current: 2-bank LRU (32KB total cache)
+
+Proposed: Add 8KB "pre-fetch buffer" in remaining heap
+
+Strategy:
+
+  // When reading bank N, pre-fetch bank N+1 into prefetchBuf
+  // Game Boy code has sequential locality - next bank likely needed
+
+Questions:
+  1. Can I fit 8kb pre-fetch buffer in remaining ~11KB heap safely?
+  2. Should pre-fetch happen asynchronously (interrupt-driven)?
+  3. How do I avoid thrashing the cache with bad predictions?
+
+Try to create C++ implentation for:
+
+uint8_t prefetchBuf[8192];
+uint32_t prefetchBase = 0xFFFFFFFF;
+bool prefetchValid = false;
+
+void triggerPrefetch(uint32_t nextBank);
+uint8_t gb_rom_read_with_prefetch(struct gb_s *gb, const uint_fast32_t a);
+
+======================================================================================================
+
+3. GBC Color Implementation
+
+Problem: My GBC code flashes bklack because palette array is never populated
+
+Questions:
+  1. Does peanut-gb support GBC color at all? 
+  2. If yes, what compile flags enable it?
+  3. How do i extract GBC palette data from the emulator core?
+  4. What is the memory overhead of GBC palette storage?
+
+Constraints:
+  - Cannot use more than 5-10KB for GBC palettes
+  - Must not break existing DMG compatability
+  - Preferably no library source modifications (optional)
+
+========================================================================================================
+
+4. Matrix Mode Easter Egg
+
+GOAL: Lightweight "Matrix falling characters" animation on 480x320 TFT
+
+REQUIRMENTS:
+  1. Run at ~15fps (acceptable for easter egg)
+  2. use <2KB heap (NO LARGE ALLOCATIONS)
+  3. Don't fragment heap
+  4. Can't use existing TFT object
+  5. Simple sine/cosine math OK
+
+Try to create C++ implementation for:
+
+void matrixModeInit();
+void matrixModeUpdate();  // Call at 15 FPS
+void matrixModeCleanup();
+
+=====================================================================================================
+
+5. Theoretical Performance Ceiling
+
+Givin:
+  - 240MHz ESP32
+  - 80MHz SPI to display
+  - 160x144 framebuffer (23,040 pixels)
+  - Peanuut-GB emulation overhead
+
+Questions:
+  1. What is the theoretical MAX FPS this hardware could achive?
+  2. Is DMA the limiting factor of CPU emulation?
+  3. Can we overclock SPI beyond 80MHz safely?
+  4. Are there peanut-gb compile flags that reduce CPU overhead?
+
+======================================================================================================
+
+6. Advanced Optimizations to Consider
+
+Do any of these if feasible withn constraints:
+
+  1. SPI transaction batching - can we batch multiple pushCOlors into single CS assertation?
+  2.  Partial framebuffer uodates - only redraw changed scanlines (dirty regions)?
+  3. Async SD reads - can we use FreeRTOS tasks to read next bank while CPU emulates?
+  4. Custom peanut-gb fork - minimal changes to reduce per-frame overhead
+  5. Assembly optimizations - Xtensa assembly for critical loops
+
+==========================================================================================================
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= CODE STYLE REQUIREMENTS -=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+==========================================================================================================
+
+If you do decide to create a open-source fork, please follow these rules:
+  1. Declare all variables at the top of the function (just for easy debugging and troubleshooting)
+  2. No non-ASCII characters in comments. (It caused compile errors for me, and it might for you too.)
+  3. Use existing buffer names. EX: FBUF, bank0Cache, bank1Cache, cram, gbp, lbuf, etc.)
+  4. Include memory saftey checks ( Check malloc returns, heap limits)
+
+===============================================================================================================
+
+                                           FINAL CONTEXT                                                           
+
+===============================================================================================================
+
+I have already spent 60+ Hours on this project and achived:
+
+  - 60 FPS on small ROMs (major win)
+  - 15-25 FPS on medium ROms (acceptable)
+  - Working save system, ROM menu, easter eggs
+
+THis is a 30 hour optimization spring to push the hardware to it's absolute limit before declaring the project complete.
+
+                  
+
+
+
+
+
+
+                          READ ALL THE WAY THROUGH
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                GO DOWN
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                              keep going!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                        so close!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+almost
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                Thank you for reading all the way down!
+3
