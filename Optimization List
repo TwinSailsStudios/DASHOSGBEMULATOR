@@ -219,7 +219,206 @@ Performance:
   - Medium ROMs (EX: SUPER MARIO LAND 64KB) falls back to 2-bank cache -> 30-50FPS
   - Large ROMs (EX: KIRBY 128KB+) falls back to 2 bank cache -> 15-25FPS
 
+==================================================================================================
+
+=-=-=-=--=-=-=-=-=-=-=--=-=-=-=-=-=-=-FAILED OPTIMIZATIONS=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+==================================================================================================
+
+1. Third Bank Cache (bank2Cache)
+
+Attempt: add16KB third cache bank
+
+#define BANK_SLOTS 3
+uint8_t *bank2Cache = (uint8_t*)malloc(ROMBANK);  // +16KB
+
+RESULT: CATASTROPHIC FAILURE
+
+Why it failed:
+
+  - Total allocation: 92KB + 16KB = 108KB
+  - Available heap: 103k
+  - Malloc succeeded but fragmented heap beyond recovery
+  - SD.begin() couldn't find contiguous blocks for FAT buffers
+  - System entered unstable state which caused GPIO glitches on the backlight pin
+
+LESSON: Memory budget is a hard limit, not a suggestion. Stay within ~90% of available heap.
+
 ===================================================================================================
 
-  -
-// Remaining for SD + Bluepad32: ~11KB
+2. Removing Framebuffer to save Memory
+
+Attempt: Eliminate 46KB fbuf, render directly to display.
+
+Result: Severe rendering artifacts and screen tearing
+
+Why?: Display updates were visible mid-frame (no double buffering)
+
+===================================================================================================
+
+3. malloc After SD Init
+
+Attempt:
+
+SD.begin(...);
+fbuf = malloc(...);  // After SD
+
+Result: White screen, SD init failures
+
+Why?: SD fragmented heap, malloc couldn't find 46KB contiguous block.
+
+====================================================================================================
+
+4. 4-Slot LRU Bank Cache
+
+Attempt:
+
+#define BANK_SLOTS 4
+uint8_t *bankBuf[4];  // 4 × 16KB = 64KB#define BANK_SLOTS 4
+uint8_t *bankBuf[4];  // 4 × 16KB = 64KB 
+
+Result: Screen rapidly flashing black and white.
+
+Why?: 64KB + 92KB = 156KB total -> exceeds 103KB heap. All malloc() calls failed silently,
+returned NULL. Null-check code toggled backlight as error signal, thus creating the flashing effect
+
+======================================================================================================
+
+5. SD at 50MHz immediately 
+
+Attempt: Skip 400kHz init, start at 50MMHz Result: Card detection failed, no filesystem mount
+
+Why: SD specification reqires 400kHz initilization for card handshake
+
+====================================================================================================
+
+6. Shared HSPI Bus (Display + SD) 
+
+Attempt: Run display and SD on same SPI bus
+
+Result: Display corruptions & timing conflicts
+
+Why: Can't share high-speed SPI between devices without complex CS arbiration
+
+=====================================================================================================
+
+7. Software SPI for SD
+
+Attempt: Bit-Banged SPI to free up hardware SPI bus
+
+Result: 2FPS, which is unusably slow
+
+Why: Bit-Banging is 50-100x slower than hardware SPI
+
+=======================================================================================================
+
+8. GBC Color Implemantion
+
+Attempt:
+
+static uint16_t gbcPal[4][3][4];  // GBC palette (never populated!)
+
+if(isGBC) {
+  dst[x] = gbcPal[palType][0][idx];  // All zeros = 0x0000 = black
+}
+
+Result: Screen flashing between black frames and valid DMG frames
+
+Why it failed: 
+  - gbcPal array was declared but never initalized, so all values were 0x0000 (black)
+  - peanut-gb does NOT expose gbc palette data through lcd_draw_line's pix[] array
+  - px[] values are always 0-3 regardless of gbc/dmg mode
+  - True GBC requires hooking onto a seperate palette callback that may not exist in peanut GB
+
+Lesson: Peanut GB is DMG ONLY in its standard configuration. GBC support requires library modification
+or different emulation core.
+
+==========================================================================================================
+
+9. esp_restart() Heap Guard
+
+Attempt: added esp_restart as a heap gaurd,
+
+Result: Completly useless, heap still low after restart
+
+Why: esp_restart() is a software CPU reset. Bluepad32 reinitalizes BT before setup() runs on the very
+next boot, fragmenting the heap again immeditly
+
+============================================================================================================
+
+10. Deep Sleep Heap Recovery
+
+Attempt:
+esp_sleep_enable_timer_wakeup(300000ULL);
+esp_deep_sleep_start();
+
+Result: Failed - heap still fragmented after wake
+Why: Bluepad32 framework restarts BT stack even on deep sleep wakeup before setup() runs
+
+============================================================================================================
+                                    CURRENT PERFORMANCE METRICS
+=============================================================================================================
+
+
+Scenario
+FPS (1x)
+FPS (2x)
+Playability
+32KB ROM (Tetris), cached
+60
+30
+Perfect
+64KB ROM (Mario), cached
+60
+30
+Perfect
+128KB ROM (Kirby), 2-bank
+15-20
+8-12
+Playable
+256KB+ ROM, 2-bank
+12-18
+6-10
+Choppy
+Any ROM at 400kHz (old bug)
+1-2
+<1
+Broken
+Per-scanline rendering (old)
+8-9
+4-5
+Broken
+
+=======================================================================================================
+                                  ARCHITECTURE DECISIONS & LESSONS LEARNED
+=======================================================================================================
+
+1. Allocation order is Sacred
+  1. malloc(all large buffers) ← when heap is pristine
+  2. SD.begin()                ← needs contiguous blocks
+  3. tft.init()                ← can work with fragments
+  4. BP32.setup()              ← gets leftovers
+
+  NEVER DEVIATE FROM THIS ORDER 
+
+2. SD Protocol Requirements
+  - MUST START AT 400KHZ (SD SPEC)
+  - CAN RENEGOTIATE UP TO 25-50MKHZ AFTER SUCCESSFUL MOUNT
+  - 25MHZ IS THE SWEET SPOT (50MHZ IS UNSTABLE ON SOME CARDS)
+
+3. HEAP FRAGMENTATION IS PERMEANENT
+  - Bluepad32 fragments heap before setup() runs
+  - No way to recover
+  - Only solution is to allocate large buffers first
+
+4. Bus Isolation
+  HSPI: Display only
+  VSPI: SD card only
+  Never share  High-Speed SPI buses
+
+5. BLock I/O ALWAYS BEATS BYTE I/O
+  - 16KB block read: ~5ms
+  - 16384 byte reads: ~450ms
+  - 12.8x speedup from single optimization
+
+=====================================================================================================
