@@ -14,7 +14,7 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{background:var(--bk);color:var(--wh);font-family:'Inconsolata',monospace;overflow-x:hidden;line-height:1.6}
+body{background:var(--bk);color:var(--wh);font-family:'Inconsolata',monospace;overflow-x:hidden;width:100vw;line-height:1.6}
 body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;
   background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.07) 3px,rgba(0,0,0,0.07) 4px)}
 
@@ -2253,11 +2253,6 @@ document.querySelectorAll('.chip').forEach((chip,i)=>{
     if(chipsClicked.size>=6) unlock('chips');
   });
 });
-
-// ════════════════════════
-//  BYTE CLICK COUNTER
-// ════════════════════════
-const origByteClick = byteClick;
 
 // ════════════════════════
 //  SCROLL REACTIONS
