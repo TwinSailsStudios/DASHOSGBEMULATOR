@@ -178,6 +178,23 @@ GB_Emulator/
 ├── GB_Emulator.ino   # Main sketch
 └── peanut_gb.h       # Game Boy emulation core (download separately)
 ```
+### Update V2
+Current Status: Unfinished
+
+What did this update add?:
+
+This update will add a massive graphical update, moving away from just plain text and shapes, to working sprites and animations to make the console OS feel so much more infatuating.
+This update has the following:
+
+-15+ Wallpapers
+-Massive collection of customizable icons, depding on your color theme, such as Game Cartdriges, Boot Screen, Folders, & Files (W.I.P)
+-Hand crafted animations for things such as console boot animations and game cartdrige insertation animations.
+-Want any animations, icons, or wallpapers added? Check out this suggestion form:
+(NOTE: I am NOT that good at art, so the more complex the image, the higher risk of it turning out bad.)
+
+SUGGESTION FORM: 
+https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAO__V3oBxFUNlJQTjZURk5HV0I4OUxEWDZTRVBCRDlIRi4u
+
 
 ---
 
