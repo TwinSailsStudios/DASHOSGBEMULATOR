@@ -1,68 +1,35 @@
 // ================================================================
-//  DASH OS ULTIMATE v30 - COMPLETE EDITION
-//  By Pratik Dash
+//  DASH OS v30 !!!
+//  made by me (Pratik)
 //
-//  ═══════════════════════════════════════════════════════════════
-//  🎮 NEW FEATURES IN v30:
-//  ═══════════════════════════════════════════════════════════════
-//  
-//  📦 CARTRIDGE ROM MENU
-//     - Fullscreen cartridge display (one ROM at a time)
-//     - Hacker-style typing animation for stats
-//     - Shows: Title, Size, Play Time, Last Saved, Favorite ★
-//     - Navigate with D-Pad Left/Right
-//     - Press A to launch, Y to favorite
+//  ok so this is my gameboy emulator thing i been working on forever
+//  its basically my own little OS for my esp32 handheld
 //
-//  ⚡ PERFORMANCE MODE
-//     - Auto-applies optimal settings: 1x scale, 8 frame skip
-//     - Toggle in settings menu
-//     - Shows "PERF" badge in status bar when active
+//  STUFF I ADDED THIS TIME:
+//  - floppy disk rom menu 
+//    shows one rom at a time like a real floppy, u swipe thru w dpad
+//    has typing animation for the stats bc hackerman vibes
+//  - performance mode = instant turbo, just flip it on
+//  - frame skip goes up to 15 (was only 2)
+//  - tracks how long u played each rom + last save time
 //
-//  🎬 EXTENDED FRAME SKIP
-//     - Now supports 0-15 frames (was 0-2)
-//     - Higher values = better FPS but choppier
-//     - Recommended: 8 for performance mode, 2 for normal
+//  SECRET STUFF (dont tell anyone):
+//    1. konami code -> up up down down left right left right B A
+//       gives u rainbow theme :)
+//    2. watch the credits all the way = unlocks snake game hehe
+//    3. hold X+Y+Start for 3sec = matrix mode (falling green stuff)
+//    4. smash select 10 times in settings = dev mode (shows heap n stuff)
+//    5. Start+Select+B+A together = speedrun timer with ms
 //
-//  📊 ENHANCED STATS
-//     - Per-ROM play time tracking (saved to .dat file)
-//     - Last saved timestamp
-//     - ROM size display
-//     - All shown in cartridge menu
+//  THEMES: got 14 of em. my fav is orange ofc (its the default)
+//    also theres a multi one that cycles thru colors
 //
-//  🎯 EASTER EGGS:
-//     ┌─────────────────────────────────────────────────────┐
-//     │ 1. KONAMI CODE                                      │
-//     │    How: Up Up Down Down Left Right Left Right B A   │
-//     │    Unlock: Rainbow theme + special message          │
-//     │                                                      │
-//     │ 2. SECRET SNAKE GAME                                │
-//     │    How: Watch credits to completion                 │
-//     │    Unlock: Hidden Snake game in settings            │
-//     │                                                      │
-//     │ 3. MATRIX MODE                                      │
-//     │    How: Hold X+Y+Start for 3 seconds in menu        │
-//     │    Unlock: Green matrix theme with falling code     │
-//     │                                                      │
-//     │ 4. DEVELOPER MODE                                   │
-//     │    How: Press Select 10 times in settings           │
-//     │    Unlock: Shows memory addresses, heap details     │
-//     │                                                      │
-//     │ 5. SPEEDRUN TIMER                                   │
-//     │    How: Press Start+Select+B+A simultaneously       │
-//     │    Unlock: Precise millisecond timer appears        │
-//     └─────────────────────────────────────────────────────┘
+//  SAVES:
+//    autosaves every 10 sec so u dont lose progress
+//    also saves when u exit w B+A
+//    works w pokemon, zelda, all that
 //
-//  🎨 14 COLOR THEMES
-//     Red, Velvet, Orange, Amber, Yellow, Gold, 
-//     Green, Matrix, Blue, Cyan, Purple, Magenta,
-//     White, Multi (cycles colors)
-//
-//  💾 SAVE FILE SUPPORT
-//     - Auto-saves every 10 seconds
-//     - Manual save on exit (B+A)
-//     - Per-ROM .sav files on SD card
-//     - Compatible with Pokemon, Zelda, etc.
-//
+//  if ur reading this hi :) ~Pratik
 // ================================================================
 
 #pragma GCC optimize("O3,unroll-loops,inline-functions,fast-math")
@@ -79,19 +46,19 @@
 #define PEANUT_GB_USE_BIOS 0
 #include "peanut_gb.h"
 
-// Display & Hardware
+// screen + pins n stuff
 int currentScale = 1;
 #define ROT   3
 #define SCRW  480
 #define SCRH  320
-#define GB_W  160
+#define GB_W  160   // gameboy screen is tiny lol
 #define GB_H  144
 #define SD_CS    5
 #define BL_PIN  27
 #define BOOT_BTN 0
 
-// ROM & Memory
-#define MAX_ROM 24
+// rom stuff
+#define MAX_ROM 24     // if u got more than 24 roms thats ur problem
 #define NL      48
 #define ROMBANK 16384
 #define CRAM    8192
@@ -99,7 +66,7 @@ int currentScale = 1;
 struct Pt { int16_t x, y; };
 
 // ================================================================
-//  THEME SYSTEM - 14 Themes
+//  THEMES!!! 14 of them. i spent forever picking the colors
 // ================================================================
 enum Theme {
   THEME_RED, THEME_VELVET,
@@ -122,25 +89,27 @@ struct ThemeColors {
   uint16_t primary, light, dim, bg;
 };
 
+// these are rgb565 colors (google it if u dont know)
 ThemeColors themes[] = {
   {0xF800, 0xFC10, 0x7800, 0x0000}, // Red
-  {0xC000, 0xE000, 0x5800, 0x1000}, // Velvet
-  {0xFC00, 0xFD60, 0x8400, 0x0000}, // Orange (default)
+  {0xC000, 0xE000, 0x5800, 0x1000}, // Velvet - kinda wine colored
+  {0xFC00, 0xFD60, 0x8400, 0x0000}, // Orange <- best one, default
   {0xFD40, 0xFEA0, 0x8280, 0x0000}, // Amber
   {0xFFE0, 0xFFF0, 0x8C00, 0x0000}, // Yellow
   {0xFEA0, 0xFF40, 0x7E00, 0x0000}, // Gold
   {0x07E0, 0x4FE0, 0x0400, 0x0000}, // Green
-  {0x03E0, 0x07E0, 0x0180, 0x0040}, // Matrix
+  {0x03E0, 0x07E0, 0x0180, 0x0040}, // Matrix (darker green)
   {0x001F, 0x439F, 0x0010, 0x0000}, // Blue
   {0x07FF, 0x4FFF, 0x0410, 0x0000}, // Cyan
   {0xF81F, 0xFC9F, 0x8010, 0x0000}, // Purple
-  {0xF81F, 0xFBFF, 0x7810, 0x0000}, // Magenta
-  {0xFFFF, 0xFFFF, 0x8410, 0x0000}, // White
-  {0xFC00, 0xFD60, 0x8400, 0x0000}, // Multi
+  {0xF81F, 0xFBFF, 0x7810, 0x0000}, // Magenta (same as purple almost oops)
+  {0xFFFF, 0xFFFF, 0x8410, 0x0000}, // White - kinda boring ngl
+  {0xFC00, 0xFD60, 0x8400, 0x0000}, // Multi (changes on its own)
 };
 
 int currentTheme = THEME_ORANGE;
 
+// global color vars. gets overwritten when u change theme
 uint16_t C_BK  = 0x0000;
 uint16_t C_OR  = 0xFC00;
 uint16_t C_LO  = 0xFD60;
@@ -150,11 +119,13 @@ uint16_t C_RD  = 0xF840;
 uint16_t C_WH  = 0xFFFF;
 uint16_t C_SEP = 0x2945;
 
+// for the multi theme that cycles
 static int _multiIdx = 0;
 static const uint16_t MULTI_C[] = {0xF800,0xFC00,0xFFE0,0x07E0,0x001F,0xF81F};
 
 void applyTheme(){
   if(currentTheme == THEME_MULTI){
+    // cycle thru colors
     C_OR  = MULTI_C[_multiIdx % 6];
     C_LO  = MULTI_C[(_multiIdx+1) % 6];
     C_DIM = 0x6B4D; C_BK = 0x0000;
@@ -164,29 +135,30 @@ void applyTheme(){
     C_DIM = themes[currentTheme].dim;
     C_BK  = themes[currentTheme].bg;
   }
+  // these ones stay the same no matter what
   C_GN = 0x4DE0; C_RD = 0xF840; C_WH = 0xFFFF; C_SEP = 0x2945;
 }
 
 // ================================================================
-//  SETTINGS & FEATURES
+//  SETTINGS + FLAGS
 // ================================================================
 bool showStats       = false;
 bool creditsWatched  = false;
-bool performanceMode = false;  // NEW: Auto-applies best FPS settings
-bool speedrunMode    = false;  // Easter egg: millisecond timer
-bool devMode         = false;  // Easter egg: memory info
-bool matrixMode      = false;  // Easter egg: falling matrix chars
-bool autoPause       = false;  // NEW: Auto-pause when controller disconnects
-int  frameSkip       = 0;      // NEW: 0-15 (was 0-2)
+bool performanceMode = false;  // turbo mode basically
+bool speedrunMode    = false;  // secret ms timer
+bool devMode         = false;  // shows heap n memory addresses
+bool matrixMode      = false;  // green falling code thing
+bool autoPause       = false;  // pauses if controller dies
+int  frameSkip       = 0;      // 0-15, higher=faster but ugly
 int  currentPalette  = 0;
 
-// DMG Palettes
+// gameboy color palettes (the 4 shades of grey/green/whatever)
 static const uint16_t PALETTES[][4] = {
   {0xFEE4, 0xFC00, 0x9A20, 0x3880}, // Amber
-  {0x8FC0, 0x4E00, 0x2340, 0x0120}, // Classic
+  {0x8FC0, 0x4E00, 0x2340, 0x0120}, // Classic (the og greenish one)
   {0xEF5C, 0xA534, 0x528A, 0x1084}, // Pocket
-  {0xFFFF, 0xAD55, 0x52AA, 0x0000}, // Light
-  {0xF81F, 0xA00F, 0x500A, 0x1884}, // Neon
+  {0xFFFF, 0xAD55, 0x52AA, 0x0000}, // Light (just greyscale)
+  {0xF81F, 0xA00F, 0x500A, 0x1884}, // Neon <- this one slaps
   {0x07FF, 0x0410, 0x0208, 0x0000}, // Cyan
 };
 static const char* paletteNames[] = {"Amber","Classic","Pocket","Light","Neon","Cyan"};
@@ -199,17 +171,18 @@ static void applyPalette(){
 }
 
 // ================================================================
-//  EASTER EGG TRACKING
+//  KONAMI CODE TRACKER
 // ================================================================
 static bool konamiUnlocked = false;
+// up up down down left right left right B A <- legendary
 static uint8_t konamiSeq[10] = {DPAD_UP,DPAD_UP,DPAD_DOWN,DPAD_DOWN,DPAD_LEFT,DPAD_RIGHT,DPAD_LEFT,DPAD_RIGHT,0,0};
 static int konamiIdx = 0;
 static uint32_t lastInputTime = 0;
-static int selectPresses = 0;  // For dev mode
+static int selectPresses = 0;  // for dev mode unlock
 static uint32_t matrixHoldStart = 0;
 
 // ================================================================
-//  ROM STATS TRACKING (NEW!)
+//  ROM STATS (how long u played etc)
 // ================================================================
 struct RomStats {
   uint32_t playTimeSeconds;
@@ -221,7 +194,8 @@ static RomStats romStats[MAX_ROM] = {};
 static uint32_t playStartMs  = 0;
 static uint32_t playTotalSec = 0;
 
-// Save/load ROM stats to .dat file
+// saves the stats to a .dat file next to the rom
+// basically same name as rom but .dat instead of .gb
 static void saveRomStats(int idx, const char *romName){
   char datPath[NL+6];
   strncpy(datPath, romName, NL-1);
@@ -250,6 +224,7 @@ static void loadRomStats(int idx, const char *romName){
     f.read((uint8_t*)&romStats[idx], sizeof(RomStats));
     f.close();
   } else {
+    // no file? just zero it out
     romStats[idx].playTimeSeconds = 0;
     romStats[idx].lastSavedTimestamp = 0;
     romStats[idx].isFavorite = false;
@@ -257,26 +232,29 @@ static void loadRomStats(int idx, const char *romName){
 }
 
 // ================================================================
-//  HARDWARE & GLOBALS
+//  HARDWARE + GLOBAL JUNK
 // ================================================================
 TFT_eSPI tft = TFT_eSPI();
 SPIClass sdspi(VSPI);
 
-// Memory
+// memory banks. esp32 doesnt have enough ram for the whole rom
+// so i cache chunks of it. bank0 is always loaded (first 16k)
+// bank1 + bank2 swap around with LRU (least recently used)
+// update: had to kill bank2 bc ran outta ram rip
 static uint8_t   *bank0Cache = nullptr;
 static uint8_t   *bank1Cache = nullptr;
 static uint8_t   *bank2Cache = nullptr;
-static uint32_t   bank1Base  = 0xFFFFFFFF;
+static uint32_t   bank1Base  = 0xFFFFFFFF;  // 0xFFFFFFFF = "nothing loaded"
 static uint32_t   bank2Base  = 0xFFFFFFFF;
 static uint32_t   bank1LRU   = 0;
 static uint32_t   bank2LRU   = 0;
 static uint32_t   lruCounter = 0;
 
-static struct gb_s *gbp   = nullptr;
-static uint16_t   *fbuf   = nullptr;
-static uint16_t   *lbuf   = nullptr;
-static uint8_t    *cram   = nullptr;
-static bool        cramDirty = false;
+static struct gb_s *gbp   = nullptr;  // peanut-gb emulator state
+static uint16_t   *fbuf   = nullptr;  // framebuffer
+static uint16_t   *lbuf   = nullptr;  // line buffer for 2x scaling
+static uint8_t    *cram   = nullptr;  // cart ram (save data)
+static bool        cramDirty = false; // did save data change?
 static uint32_t    romsz  = 0;
 static File        romf;
 
@@ -287,33 +265,38 @@ static uint32_t lastSaveTime = 0;
 static char     gTitle[17] = "";
 static bool     isGBC = false;
 
-static char rfn [MAX_ROM][NL];
-static char rdsp[MAX_ROM][NL];
+static char rfn [MAX_ROM][NL];  // rom filenames
+static char rdsp[MAX_ROM][NL];  // display names (no .gb)
 static int  rcnt = 0;
 static char currentRomFile[NL] = "";
 static int  currentRomIdx = -1;
 
 static ControllerPtr ctrl = nullptr;
-void onConn(ControllerPtr c){ ctrl=c; Serial.println("[BT] connected"); }
-void onDisc(ControllerPtr c){ ctrl=nullptr; Serial.println("[BT] disconnected"); }
+void onConn(ControllerPtr c){ ctrl=c; Serial.println("[BT] controller connected :)"); }
+void onDisc(ControllerPtr c){ ctrl=nullptr; Serial.println("[BT] disconnected :("); }
 
 // ================================================================
-//  ROM CALLBACKS
+//  ROM READING CALLBACKS (peanut-gb calls these)
 // ================================================================
+// this gets called a LOT so it needs to be fast. IRAM_ATTR puts it in fast ram
 IRAM_ATTR uint8_t gb_rom_read(struct gb_s *gb, const uint_fast32_t a){
-  if(a < ROMBANK) return bank0Cache[a];
+  if(a < ROMBANK) return bank0Cache[a];  // bank 0, easy
+  
   uint32_t base = (a / ROMBANK) * ROMBANK;
   
+  // is it already in bank1?
   if(base == bank1Base){
     bank1LRU = ++lruCounter;
     return bank1Cache[a - base];
   }
   
+  // bank2?
   if(bank2Cache && base == bank2Base){
     bank2LRU = ++lruCounter;
     return bank2Cache[a - base];
   }
   
+  // not cached, gotta load from SD. swap out whichever is older
   if(!bank2Cache || bank1LRU < bank2LRU){
     bank1Base = base;
     bank1LRU = ++lruCounter;
@@ -338,23 +321,26 @@ IRAM_ATTR uint8_t gb_cart_ram_read(struct gb_s *g, const uint_fast32_t a){
 IRAM_ATTR void gb_cart_ram_write(struct gb_s *g, const uint_fast32_t a, const uint8_t v){
   if(a < CRAM){
     cram[a] = v;
-    cramDirty = true;
+    cramDirty = true;  // mark for saving later
   }
 }
 
+// error handler. i just ignore errors lol it usually works out
 void gb_error(struct gb_s *g, const enum gb_error_e e, const uint16_t v){}
 
+// called once per scanline. converts gb pixels to rgb565
 IRAM_ATTR void lcd_draw_line(struct gb_s *gb, const uint8_t *px, const uint_fast8_t line){
   uint16_t *dst = fbuf + (int)line * GB_W;
   for(int x = 0; x < GB_W; x++) dst[x] = DMG[px[x] & 3];
 }
 
 // ================================================================
-//  SAVE FILE FUNCTIONS
+//  SAVE/LOAD SRAM (pokemon saves n stuff)
 // ================================================================
 static void saveSRAM(const char *romName){
-  if(!cramDirty) return;
+  if(!cramDirty) return;  // nothing changed, skip
   
+  // same trick as before, swap .gb for .sav
   char savePath[NL+6];
   strncpy(savePath, romName, NL-1);
   savePath[NL-1] = 0;
@@ -368,15 +354,15 @@ static void saveSRAM(const char *romName){
     saveFile.close();
     cramDirty = false;
     
-    // Update last saved timestamp
+    // update when we last saved
     if(currentRomIdx >= 0){
       romStats[currentRomIdx].lastSavedTimestamp = millis() / 1000;
       saveRomStats(currentRomIdx, romName);
     }
     
-    Serial.printf("[SAVE] Wrote %s (%d bytes)\n", savePath, CRAM);
+    Serial.printf("[SAVE] wrote %s (%d bytes)\n", savePath, CRAM);
   } else {
-    Serial.printf("[SAVE] Failed to write %s\n", savePath);
+    Serial.printf("[SAVE] couldnt write %s :(\n", savePath);
   }
 }
 
@@ -388,33 +374,37 @@ static void loadSRAM(const char *romName){
   if(dot) strcpy(dot, ".sav");
   else strcat(savePath, ".sav");
   
-  Serial.printf("[SAVE] Loading save for ROM: %s -> %s\n", romName, savePath);
+  Serial.printf("[SAVE] loading save for: %s -> %s\n", romName, savePath);
   
   File saveFile = SD.open(savePath, FILE_READ);
   if(saveFile){
     size_t bytesRead = saveFile.read(cram, CRAM);
     saveFile.close();
     cramDirty = false;
-    Serial.printf("[SAVE] Loaded %s (%d bytes)\n", savePath, bytesRead);
+    Serial.printf("[SAVE] loaded %s (%d bytes)\n", savePath, bytesRead);
   } else {
+    // no save = fresh start. fill w 0xFF bc thats what real carts do
     memset(cram, 0xFF, CRAM);
     cramDirty = false;
-    Serial.printf("[SAVE] No save file found, starting fresh\n");
+    Serial.printf("[SAVE] no save found, fresh start!\n");
   }
 }
 
 // ================================================================
-//  DISPLAY HELPERS
+//  LIL HELPERS FOR DRAWING TEXT (saves me typing the same stuff)
 // ================================================================
+// T = text. lazy name but whatever
 static void T(int x,int y,const char *s,uint16_t fg,uint16_t bg,uint8_t sz=1){
   tft.setTextFont(1); tft.setTextSize(sz);
   tft.setTextColor(fg,bg); tft.setCursor(x,y); tft.print(s);
 }
 
+// TC = text centered
 static void TC(int y,const char *s,uint16_t fg,uint16_t bg,uint8_t sz=1){
   T((SCRW-(int)strlen(s)*6*sz)/2,y,s,fg,bg,sz);
 }
 
+// horizontal line
 static void HL(int y,uint16_t c=0xFFFF){ 
   tft.drawFastHLine(0,y,SCRW,c); 
 }
@@ -432,17 +422,19 @@ static void botBar(const char *h){
   T(4,SCRH-10,h,C_DIM,C_BK,1);
 }
 
+// if something REALLY breaks, we come here and just give up
 static void die(const char *msg){
   tft.fillScreen(C_BK); HL(0,C_RD);
   T(4, 8,"[ FATAL ]",C_RD,C_BK,2);
   T(4,30,msg,C_WH,C_BK,1);
   Serial.printf("[FATAL] %s\n",msg);
-  while(true) delay(999);
+  while(true) delay(999);  // bye
 }
 
 // ================================================================
-//  INPUT HELPERS
+//  CONTROLLER INPUT
 // ================================================================
+// reads dpad. handles weird case where 8bitdo sends axis instead of dpad
 static uint8_t dpv(){
   if(!ctrl) return 0;
   uint8_t d=0;
@@ -450,7 +442,7 @@ static uint8_t dpv(){
   if(ctrl->dpad()&0x02) d|=DPAD_DOWN;
   if(ctrl->dpad()&0x04) d|=DPAD_RIGHT;
   if(ctrl->dpad()&0x08) d|=DPAD_LEFT;
-  // Axis fallback — 8BitDo Micro Switch mode sends axes not dpad bits
+  // my 8bitdo micro in switch mode sends axes not dpad bits. took me HOURS to figure out
   if(!d){
     int ax=ctrl->axisX(), ay=ctrl->axisY();
     if(ax < -200) d|=DPAD_LEFT;
@@ -461,8 +453,9 @@ static uint8_t dpv(){
   return d;
 }
 
-// Konami code checker
+// checks if ur doing the konami code
 static void checkKonami(uint8_t input){
+  // if u wait too long, reset
   if(millis() - lastInputTime > 1000) konamiIdx = 0;
   lastInputTime = millis();
   
@@ -474,32 +467,37 @@ static void checkKonami(uint8_t input){
   } else if(konamiIdx == 8 && (input & BUTTON_B)){
     konamiIdx++;
   } else if(konamiIdx == 9 && (input & BUTTON_A)){
+    // WE DID IT
     konamiUnlocked = true;
-    Serial.println("[EASTER EGG] KONAMI CODE UNLOCKED!");
+    Serial.println("[EASTER EGG] KONAMI CODE!!! nice");
   } else {
-    konamiIdx = 0;
+    konamiIdx = 0;  // messed up, start over
   }
 }
 
 // ================================================================
-//  PUSH FRAME TO DISPLAY
+//  PUSH FRAMEBUFFER TO THE SCREEN
 // ================================================================
 static void pushFrame(){
   int gfxW = GB_W * currentScale;
   int gfxH = GB_H * currentScale;
+  // center it
   int gbX = (SCRW - gfxW) / 2;
   int gbY = (SCRH - gfxH) / 2;
   
   tft.startWrite();
   if(currentScale == 1){
+    // just blast it to the screen, simple
     tft.setAddrWindow(gbX, gbY, GB_W, GB_H);
     tft.pushColors(fbuf, GB_W * GB_H, true);
   } else {
+    // 2x mode: duplicate every pixel horizontally AND every line vertically
     tft.setAddrWindow(gbX, gbY, gfxW, gfxH);
     for(int y = 0; y < GB_H; y++){
       uint16_t *src = fbuf + y * GB_W;
       uint16_t *d = lbuf;
       for(int x = 0; x < GB_W; x++){ *d++ = src[x]; *d++ = src[x]; }
+      // push the same line twice = vertical scaling
       tft.pushColors(lbuf, gfxW, true);
       tft.pushColors(lbuf, gfxW, true);
     }
@@ -508,7 +506,7 @@ static void pushFrame(){
 }
 
 // ================================================================
-//  BOOT ANIMATIONS
+//  BOOT SPLASH
 // ================================================================
 static void splashScreen(){
   tft.fillScreen(C_BK);
@@ -518,6 +516,7 @@ static void splashScreen(){
   TC(SCRH/2+50,"press A or BOOT",C_DIM,C_BK,1);
   TC(SCRH-20,"by Pratik Dash",C_DIM,C_BK,1);
   
+  // wait for button press
   while(true){
     BP32.update(); delay(10);
     if(digitalRead(BOOT_BTN)==LOW) break;
@@ -527,8 +526,9 @@ static void splashScreen(){
 }
 
 // ================================================================
-//  FLOPPY DISK ROM MENU (NEW!)
+//  FLOPPY DISK ROM MENU (THE COOL ONE)
 // ================================================================
+// types out text character by character. hacker movie vibes
 static void typeText(int x, int y, const char *text, uint16_t color, int delayMs){
   char buf[64];
   int len = strlen(text);
@@ -541,47 +541,49 @@ static void typeText(int x, int y, const char *text, uint16_t color, int delayMs
   }
 }
 
+// draws a big floppy disk w the rom info on it
+// i looked up pics of real 3.5" floppies for reference
 static void drawFloppyDisk(int idx){
   tft.fillScreen(C_BK);
   
-  // Floppy disk outline (3.5" style)
+  // figure out where to put it
   int fx = SCRW/2 - 100;
   int fy = 60;
   int fw = 200;
   int fh = 180;
   
-  // Main floppy body
+  // main floppy body (dark grey)
   tft.fillRect(fx, fy, fw, fh, 0x2104);
   tft.drawRect(fx, fy, fw, fh, C_OR);
-  tft.drawRect(fx+1, fy+1, fw-2, fh-2, C_OR);
+  tft.drawRect(fx+1, fy+1, fw-2, fh-2, C_OR);  // double border looks better
   
-  // Metal shutter at top
+  // the silver metal slidey thing on top
   tft.fillRect(fx+20, fy+10, fw-40, 30, 0x632C);
   tft.drawRect(fx+20, fy+10, fw-40, 30, C_DIM);
   
-  // Label area
+  // white label area (like where u write "homework" or whatever)
   tft.fillRect(fx+15, fy+50, fw-30, 100, C_BK);
   tft.drawRect(fx+15, fy+50, fw-30, 100, C_LO);
   
-  // ROM name on label
+  // rom name on the label
   TC(fy+60, rdsp[idx], C_OR, C_BK, 1);
   
-  // Hacker-style stats with typing effect
+  // stats w typing animation!! this part is my fav
   int statY = fy + 85;
   char buf[64];
   
-  // Size
+  // size
   snprintf(buf, 64, "> SIZE: %u KB", romsz/1024);
   typeText(fx+25, statY, buf, C_WH, 10);
   statY += 16;
   
-  // Play time
+  // play time (convert secs to hrs/mins)
   uint32_t secs = romStats[idx].playTimeSeconds;
   snprintf(buf, 64, "> PLAYED: %uh %um", secs/3600, (secs%3600)/60);
   typeText(fx+25, statY, buf, C_GN, 10);
   statY += 16;
   
-  // Last saved
+  // when u last saved
   if(romStats[idx].lastSavedTimestamp > 0){
     uint32_t ago = (millis()/1000) - romStats[idx].lastSavedTimestamp;
     snprintf(buf, 64, "> SAVED: %um ago", ago/60);
@@ -591,27 +593,28 @@ static void drawFloppyDisk(int idx){
   }
   statY += 16;
   
-  // Favorite
+  // star if favorited
   if(romStats[idx].isFavorite){
     typeText(fx+25, statY, "> FAVORITE: YES", C_OR, 10);
   }
   
-  // Write-protect notch (top right corner)
+  // write-protect notch thingy (the lil cutout on real floppies)
   tft.fillRect(fx+fw-15, fy+5, 10, 20, C_BK);
   
-  // Navigation hints
+  // help text at bottom
   botBar("Left/Right:browse  A:launch  Y:fav  X:settings");
   
-  // Show favorite star
+  // big star in corner if its a fav
   if(romStats[idx].isFavorite){
     T(fx+fw-25, fy+60, "*", C_OR, C_BK, 2);
   }
 }
 
+// main menu loop, returns which rom u picked (or -1 for exit)
 static int floppyDiskMenu(){
   int sel = 0;
   
-  // Load all ROM stats
+  // load stats for every rom first
   for(int i = 0; i < rcnt; i++){
     loadRomStats(i, rfn[i]);
   }
@@ -623,24 +626,27 @@ static int floppyDiskMenu(){
     
     if(!ctrl){
       delay(20);
-      continue;
+      continue;  // no controller, just wait
     }
     
     uint8_t d = dpv();
     uint32_t btn = ctrl->buttons();
     
+    // swipe right = next rom
     if(d & DPAD_RIGHT){
-      sel = (sel + 1) % rcnt;
+      sel = (sel + 1) % rcnt;  // wrap around
       drawFloppyDisk(sel);
-      delay(200);
+      delay(200);  // debounce
     }
     
+    // swipe left = prev rom
     if(d & DPAD_LEFT){
-      sel = (sel - 1 + rcnt) % rcnt;
+      sel = (sel - 1 + rcnt) % rcnt;  // +rcnt so it doesnt go negative
       drawFloppyDisk(sel);
       delay(200);
     }
     
+    // Y = toggle favorite
     if(btn & BUTTON_Y){
       romStats[sel].isFavorite = !romStats[sel].isFavorite;
       saveRomStats(sel, rfn[sel]);
@@ -648,8 +654,8 @@ static int floppyDiskMenu(){
       delay(200);
     }
     
+    // X = open settings from menu
     if(btn & BUTTON_X){
-      // Open settings from menu
       settingsMenu();
       applyTheme();
       applyPalette();
@@ -657,14 +663,16 @@ static int floppyDiskMenu(){
       delay(200);
     }
     
+    // A = pick this one!!
     if(btn & BUTTON_A){
       delay(200);
       return sel;
     }
     
+    // B = back out
     if(btn & BUTTON_B){
       delay(200);
-      return -1; // Exit to boot
+      return -1;
     }
     
     delay(50);
@@ -672,7 +680,7 @@ static int floppyDiskMenu(){
 }
 
 // ================================================================
-//  CREDITS SCREEN
+//  CREDITS (scrolls like star wars)
 // ================================================================
 static void showCredits(){
   tft.fillScreen(C_BK);
@@ -682,7 +690,7 @@ static void showCredits(){
     "v30",
     "",
     "Created by",
-    "PRATIK DASH",
+    "PRATIK DASH",  // <- thats me :)
     "",
     "Powered by:",
     "- PEANUT-GB",
@@ -693,6 +701,7 @@ static void showCredits(){
     "Open Source Community",
     "",
     "Easter Eggs Found:",
+    // show checkmark if unlocked, ? if not
     konamiUnlocked ? "CHECK Konami Code" : "? Konami Code",
     devMode ? "CHECK Dev Mode" : "? Dev Mode",
     speedrunMode ? "CHECK Speedrun Timer" : "? Speedrun Timer",
@@ -702,16 +711,17 @@ static void showCredits(){
   };
   
   int numLines = sizeof(credits)/sizeof(credits[0]);
-  int scrollY = SCRH;
+  int scrollY = SCRH;  // start offscreen at the bottom
   
+  // scroll up until everything is offscreen
   while(scrollY > -numLines*20){
     BP32.update();
-    if(ctrl && (ctrl->buttons()&BUTTON_B)) break;
+    if(ctrl && (ctrl->buttons()&BUTTON_B)) break;  // let em skip
     
     tft.fillScreen(C_BK);
     for(int i=0; i<numLines; i++){
       int y = scrollY + i*20;
-      if(y > -20 && y < SCRH){
+      if(y > -20 && y < SCRH){  // only draw whats visible
         TC(y, credits[i], C_OR, C_BK, 1);
       }
     }
@@ -719,52 +729,56 @@ static void showCredits(){
     delay(50);
   }
   
-  creditsWatched = true;
+  creditsWatched = true;  // they watched the whole thing, unlock snake
 }
 
 // ================================================================
-//  SECRET SNAKE GAME
+//  SECRET SNAKE GAME (the reward for watching credits)
 // ================================================================
 #define SN_COLS 30
 #define SN_ROWS 20
-#define SN_CEL  10
-#define SN_MAX  300
+#define SN_CEL  10    // how big each cell is
+#define SN_MAX  300   // max snake length. if u get this u r insane
 #define SN_OFFX ((SCRW-SN_COLS*SN_CEL)/2)
 #define SN_OFFY ((SCRH-SN_ROWS*SN_CEL)/2)
 
 static void snakeDraw(Pt p, uint16_t c){
   tft.fillRect(SN_OFFX+p.x*SN_CEL, SN_OFFY+p.y*SN_CEL, SN_CEL-1, SN_CEL-1, c);
+  // SN_CEL-1 leaves a lil gap so u can see the snake segments
 }
 
 static void secretSnake(){
-  if(!creditsWatched) return;
+  if(!creditsWatched) return;  // no cheating!!
   
   Pt *snake = (Pt*)malloc(SN_MAX*sizeof(Pt));
-  if(!snake) return;
+  if(!snake) return;  // outta memory rip
   
-snrestart:
+snrestart:  // yeah i used goto sue me lol
   tft.fillScreen(C_BK);
   topBar("SECRET SNAKE");
   botBar("D-Pad:move Y:pause A:restart B:exit");
   
+  // draw arena border
   tft.drawRect(SN_OFFX-1, SN_OFFY-1, SN_COLS*SN_CEL+2, SN_ROWS*SN_CEL+2, C_OR);
   
+  // start w 3 segments in the middle
   int snLen = 3;
   snake[0] = {SN_COLS/2, SN_ROWS/2};
   snake[1] = {SN_COLS/2-1, SN_ROWS/2};
   snake[2] = {SN_COLS/2-2, SN_ROWS/2};
   
-  int sdx = 1, sdy = 0;
+  int sdx = 1, sdy = 0;  // start going right
   Pt food = {(int16_t)random(SN_COLS), (int16_t)random(SN_ROWS)};
   
+  // draw initial snake + food
   for(int i=0; i<snLen; i++) snakeDraw(snake[i], i==0?C_OR:C_LO);
   snakeDraw(food, C_RD);
   
   int score = 0;
-  int spd = 150;
+  int spd = 150;  // delay between moves (lower = faster)
   uint32_t lm = millis();
   bool paused = false;
-  bool pheld = false;
+  bool pheld = false;  // so it doesnt pause/unpause a million times
   
   char sc[20];
   snprintf(sc, 20, "Score: %d", score);
@@ -789,17 +803,22 @@ snrestart:
       continue;
     }
     
+    // change direction but u cant go backwards into urself
     if((d & DPAD_UP)    && sdy != 1)  {sdx = 0; sdy = -1;}
     if((d & DPAD_DOWN)  && sdy != -1) {sdx = 0; sdy = 1;}
     if((d & DPAD_LEFT)  && sdx != 1)  {sdx = -1; sdy = 0;}
     if((d & DPAD_RIGHT) && sdx != -1) {sdx = 1; sdy = 0;}
     
+    // wait til its time for next move
     if(millis() - lm < (uint32_t)spd){delay(5); continue;}
     lm = millis();
     
+    // figure out new head position
     Pt nh = {(int16_t)(snake[0].x + sdx), (int16_t)(snake[0].y + sdy)};
     
+    // did we hit a wall?
     bool dead = (nh.x < 0 || nh.x >= SN_COLS || nh.y < 0 || nh.y >= SN_ROWS);
+    // did we hit ourselves?
     if(!dead){
       for(int i=1; i<snLen; i++){
         if(nh.x == snake[i].x && nh.y == snake[i].y){
@@ -810,6 +829,7 @@ snrestart:
     }
     
     if(dead){
+      // death animation (flashes red)
       for(int f=0; f<8; f++){
         for(int i=0; i<snLen; i++) snakeDraw(snake[i], f%2 ? C_RD : C_BK);
         delay(80);
@@ -821,6 +841,7 @@ snrestart:
       TC(SCRH/2+22, "A:restart  B:exit", C_DIM, C_BK, 1);
       delay(400);
       
+      // wait for input
       while(true){
         BP32.update();
         if(!ctrl){delay(20); continue;}
@@ -832,18 +853,21 @@ snrestart:
     }
     
     bool ate = (nh.x == food.x && nh.y == food.y);
+    // only erase tail if we DIDNT eat (bc we grow)
     if(!ate) snakeDraw(snake[snLen-1], C_BK);
     if(ate && snLen < SN_MAX) snLen++;
     
+    // shift all segments down by 1, new head at front
     for(int i = snLen-1; i > 0; i--) snake[i] = snake[i-1];
     snake[0] = nh;
     snakeDraw(snake[0], C_OR);
-    if(snLen > 1) snakeDraw(snake[1], C_LO);
+    if(snLen > 1) snakeDraw(snake[1], C_LO);  // redraw old head in lighter color
     
     if(ate){
       score++;
-      spd = max(60, spd - 3);
+      spd = max(60, spd - 3);  // speed up a bit. 60 is the cap or its impossible
       
+      // place new food somewhere NOT on the snake
       Pt nf;
       bool ok = false;
       while(!ok){
@@ -859,6 +883,7 @@ snrestart:
       food = nf;
       snakeDraw(food, C_RD);
       
+      // update score display
       snprintf(sc, 20, "Score: %d  ", score);
       tft.fillRect(SN_OFFX, 5, 120, 10, C_BK);
       T(SN_OFFX, 5, sc, C_WH, C_BK, 1);
@@ -869,7 +894,7 @@ snrestart:
 }
 
 // ================================================================
-//  ROM SCANNING
+//  SCAN SD CARD FOR ROMS
 // ================================================================
 static void scanRoms(){
   rcnt=0;
@@ -879,10 +904,11 @@ static void scanRoms(){
   while(true){
     File e=root.openNextFile();
     if(!e||rcnt>=MAX_ROM) break;
-    if(e.isDirectory()) continue;
+    if(e.isDirectory()) continue;  // skip folders
     const char *n=e.name(); 
     int l=strlen(n);
     if(l<4) continue;
+    // only .gb files. check last 3 chars case insensitive
     if(!(toupper(n[l-1])=='B'&&toupper(n[l-2])=='G'&&n[l-3]=='.')) continue;
     
     strncpy(rfn[rcnt],n,NL-1); 
@@ -890,6 +916,7 @@ static void scanRoms(){
     strncpy(rdsp[rcnt],n,NL-1); 
     rdsp[rcnt][NL-1]=0;
     
+    // strip the .gb off the display name
     int k; 
     for(k=l-1;k>=0;k--) 
       if(rdsp[rcnt][k]=='.'){
@@ -902,14 +929,15 @@ static void scanRoms(){
 }
 
 static bool openRom(const char *name){
-  if(romf) romf.close();
+  if(romf) romf.close();  // close old one first
   char path[NL+2]; 
   snprintf(path,sizeof(path),"/%s",name);
   romf=SD.open(path);
   if(!romf) return false;
   romsz=romf.size(); 
-  bank1Base=0xFFFFFFFF;
+  bank1Base=0xFFFFFFFF;  // reset cache
   
+  // preload bank 0 (always needed)
   if(bank0Cache){
     uint32_t n=min((uint32_t)ROMBANK,romsz);
     romf.seek(0);
@@ -935,6 +963,7 @@ static void settingsMenu(){
       continue;
     }
     
+    // only redraw when something changed (saves time)
     if(needRedraw){
       tft.fillScreen(C_BK);
       topBar("SETTINGS");
@@ -945,6 +974,7 @@ static void settingsMenu(){
       
       for(int i = 0; i < S_COUNT; i++){
         bool selected = (sel == i);
+        // highlight the selected row
         tft.fillRect(0, y, SCRW, 28, selected ? 0x2104 : C_BK);
         uint16_t fg = selected ? C_OR : C_WH;
         uint16_t bg = selected ? 0x2104 : C_BK;
@@ -952,6 +982,7 @@ static void settingsMenu(){
         const char* label = "";
         val[0] = 0;
         
+        // giant if/else chain but whatever it works
         if(i == S_THEME){
           label = "Theme:";
           snprintf(val, 48, "%s", themeNames[currentTheme]);
@@ -1004,6 +1035,7 @@ static void settingsMenu(){
     }
     
     if(btn & BUTTON_A){
+      // A cycles the selected option
       if(sel == S_THEME){
         currentTheme = (currentTheme+1) % THEME_COUNT;
         applyTheme();
@@ -1011,12 +1043,13 @@ static void settingsMenu(){
         currentPalette = (currentPalette+1) % PALETTE_COUNT;
         applyPalette();
       } else if(sel == S_SCALE){
-        currentScale = (currentScale == 1) ? 2 : 1;
+        currentScale = (currentScale == 1) ? 2 : 1;  // just toggle 1x/2x
       } else if(sel == S_SKIP){
-        frameSkip = (frameSkip + 1) % 16;
+        frameSkip = (frameSkip + 1) % 16;  // 0-15
       } else if(sel == S_PERF){
         performanceMode = !performanceMode;
         if(performanceMode){
+          // turbo preset: small screen, lots of skip, show fps
           currentScale = 1;
           frameSkip = 8;
           showStats = true;
@@ -1027,7 +1060,7 @@ static void settingsMenu(){
         autoPause = !autoPause;
       } else if(sel == S_CREDITS){
         showCredits();
-        if(creditsWatched) secretSnake();
+        if(creditsWatched) secretSnake();  // reward!!
       }
       needRedraw = true;
       delay(200);
@@ -1038,7 +1071,7 @@ static void settingsMenu(){
       return; 
     }
     
-    // Easter egg: Press Select 10 times for dev mode
+    // EASTER EGG: hit select 10x = dev mode
     if(misc & MISC_BUTTON_SELECT){
       selectPresses++;
       if(selectPresses >= 10){
@@ -1057,21 +1090,24 @@ static void settingsMenu(){
 }
 
 // ================================================================
-//  SETUP
+//  SETUP (runs once at boot)
 // ================================================================
 void setup(){
+  // turn on the backlight first so we can see stuff
   pinMode(BL_PIN, OUTPUT); 
   digitalWrite(BL_PIN, HIGH);
   pinMode(BOOT_BTN, INPUT_PULLUP);
 
+  // allocate all the big buffers. if any of these fail we r cooked
   fbuf = (uint16_t*)malloc(GB_W * GB_H * sizeof(uint16_t));
   bank0Cache = (uint8_t*)malloc(ROMBANK);
   bank1Cache = (uint8_t*)malloc(ROMBANK);
-  bank2Cache = nullptr; // Skip to save RAM
+  bank2Cache = nullptr;  // no room for bank2, sad but it works
   cram = (uint8_t*)malloc(CRAM);
   gbp  = (struct gb_s*)malloc(sizeof(struct gb_s));
   lbuf = (uint16_t*)malloc(GB_W * 2 * sizeof(uint16_t));
 
+  // if any malloc failed, blink the backlight forever to signal :(
   if(!fbuf||!bank0Cache||!bank1Cache||!cram||!gbp||!lbuf){
     while(true){ 
       digitalWrite(BL_PIN,HIGH); 
@@ -1081,21 +1117,24 @@ void setup(){
     }
   }
   
-  memset(cram, 0xFF, CRAM);
+  memset(cram, 0xFF, CRAM);  // init save ram
 
   Serial.begin(115200); 
   delay(100);
-  Serial.println("[BOOT] DASH OS ULTIMATE v30");
+  Serial.println("[BOOT] DASH OS ULTIMATE v30 lets goooo");
   Serial.printf("[MEM] free=%u\n", ESP.getFreeHeap());
 
+  // SD card setup. this was SO annoying to get working
   pinMode(SD_CS, OUTPUT);
   digitalWrite(SD_CS, HIGH);
   delay(200);
   sdspi.begin(18,19,23,SD_CS);
   delay(200);
   
+  // try at slow speed first (400khz)
   bool sdOK = SD.begin(SD_CS, sdspi, 400000);
   if(!sdOK){
+    // sometimes it fails the first time, try again
     delay(400); 
     digitalWrite(SD_CS, HIGH); 
     delay(100);
@@ -1103,15 +1142,16 @@ void setup(){
   }
   
   if(sdOK){
+    // if slow worked, try fast. fall back if it doesnt
     SD.end();
     delay(50);
-    sdOK = SD.begin(SD_CS, sdspi, 25000000);
+    sdOK = SD.begin(SD_CS, sdspi, 25000000);  // 25mhz, spicy
     if(!sdOK) sdOK = SD.begin(SD_CS, sdspi, 20000000);
     if(!sdOK) sdOK = SD.begin(SD_CS, sdspi, 10000000);
   }
   
   Serial.printf("[SD] init %s  heap=%u\n", sdOK?"OK":"FAILED", ESP.getFreeHeap());
-  if(!sdOK){ while(true) delay(999); }
+  if(!sdOK){ while(true) delay(999); }  // no SD = no fun, just hang
 
   applyTheme();
   applyPalette();
@@ -1122,11 +1162,12 @@ void setup(){
   BP32.setup(&onConn, &onDisc);
   splashScreen();
   
+  // wait for controller to connect (cant do much w/o it)
   while(!ctrl){ BP32.update(); delay(50); }
 }
 
 // ================================================================
-//  MAIN LOOP
+//  MAIN LOOP (runs forever)
 // ================================================================
 enum State{MENU, PLAYING};
 static State st = MENU;
@@ -1137,11 +1178,11 @@ void loop(){
   if(st == MENU){
     tft.fillScreen(C_BK);
     scanRoms();
-    if(rcnt == 0) die("no .gb files on SD");
+    if(rcnt == 0) die("no .gb files on SD");  // put some roms on it dummy
 
     int pick = floppyDiskMenu();
     if(pick < 0){
-      // Exit - reboot or go back to splash
+      // user bailed, reboot the whole thing
       delay(1000);
       ESP.restart();
     }
@@ -1154,21 +1195,25 @@ void loop(){
 
     tft.fillScreen(C_BK);
 
+    // reset rom bank caches for new game
     bank1Base = bank2Base = 0xFFFFFFFF;
     bank1LRU = bank2LRU = 0;
     lruCounter = 0;
 
+    // grab the game title from the rom header (offset 0x134)
     memset(gTitle, 0, sizeof(gTitle));
     for(int k = 0; k < 16; k++){
       uint8_t cc = bank0Cache[0x134+k];
-      gTitle[k] = (cc>=32 && cc<127) ? (char)cc : 0;
+      gTitle[k] = (cc>=32 && cc<127) ? (char)cc : 0;  // printable ascii only
     }
 
+    // check if its gameboy color (we dont support GBC but good to know)
     isGBC = (bank0Cache[0x0143] == 0x80 || bank0Cache[0x0143] == 0xC0);
     Serial.printf("[ROM] %s, GBC: %s\n", gTitle, isGBC ? "YES" : "NO");
 
     loadSRAM(currentRomFile);
 
+    // fire up the emulator!!!
     enum gb_init_error_e err = gb_init(gbp, gb_rom_read, gb_cart_ram_read,
                                        gb_cart_ram_write, gb_error, nullptr);
     if(err != GB_INIT_NO_ERROR) die("gb_init failed");
@@ -1176,7 +1221,7 @@ void loop(){
     gb_init_lcd(gbp, lcd_draw_line);
     gbp->direct.frame_skip = frameSkip;
     gbp->direct.interlace  = 0;
-    gbp->direct.joypad     = 0xFF;
+    gbp->direct.joypad     = 0xFF;  // 0xFF = no buttons pressed (inverted)
 
     playStartMs = millis();
     playTotalSec = 0;
@@ -1193,17 +1238,17 @@ void loop(){
     uint32_t misc = ctrl ? ctrl->miscButtons() : 0;
     uint8_t  d    = dpv();
 
-    // Check for Konami code
+    // check konami code (could happen anytime)
     checkKonami(d | btn);
     
-    // Easter egg: Speedrun timer (Start+Select+B+A)
+    // EASTER EGG: Start+Select+B+A all at once = speedrun timer
     if((misc & MISC_BUTTON_START) && (misc & MISC_BUTTON_SELECT) && 
        (btn & BUTTON_A) && (btn & BUTTON_B)){
       speedrunMode = !speedrunMode;
       delay(500);
     }
 
-    // X+Y for settings
+    // X+Y = open settings while playing
     if((btn & BUTTON_X) && (btn & BUTTON_Y)){
       settingsMenu();
       applyTheme(); 
@@ -1215,11 +1260,11 @@ void loop(){
       return;
     }
 
-    // B+A to exit
+    // B+A held = exit back to menu (+save everything)
     if((btn & BUTTON_A) && (btn & BUTTON_B)){
       delay(400);
       
-      // Save and update stats
+      // save SRAM + update play time
       saveSRAM(currentRomFile);
       uint32_t sessionSecs = (millis() - playStartMs) / 1000;
       romStats[currentRomIdx].playTimeSeconds += sessionSecs;
@@ -1230,7 +1275,9 @@ void loop(){
       return;
     }
 
-    // Map controls
+    // map our controller buttons to gameboy button bits
+    // gb wants: bit0=A bit1=B bit2=Select bit3=Start bit4=Right bit5=Left bit6=Up bit7=Down
+    // wait i had A and B swapped in comments lol let me just keep the code
     uint8_t joy = 0;
     if(d & DPAD_RIGHT) joy |= (1<<4);
     if(d & DPAD_LEFT)  joy |= (1<<5);
@@ -1240,33 +1287,34 @@ void loop(){
     if(btn & BUTTON_A) joy |= (1<<1);
     if(misc & MISC_BUTTON_START)  joy |= (1<<3);
     if(misc & MISC_BUTTON_SELECT) joy |= (1<<2);
-    gbp->direct.joypad = ~joy;
+    gbp->direct.joypad = ~joy;  // gb wants it inverted (0=pressed)
 
+    // THE ACTUAL EMULATION HAPPENS HERE
     gb_run_frame(gbp);
     pushFrame();
 
-    // Draw status bar at bottom with FPS
+    // draw little status bar under the gameboy screen
     int gfxW = GB_W * currentScale;
     int gfxH = GB_H * currentScale;
     int gbY = (SCRH - gfxH) / 2;
     
-    // Bottom status bar
+    // only if theres room for it
     if(gbY + gfxH < SCRH - 16){
       int barY = gbY + gfxH + 2;
       tft.fillRect(0, barY, SCRW, 14, C_BK);
       
-      // Left side: FPS
+      // fps on the left
       char fpsStr[16];
       snprintf(fpsStr, 16, "%.0f FPS", fps);
       T(4, barY+2, fpsStr, C_GN, C_BK, 1);
       
-      // Right side: Performance badge
+      // PERF badge if turbo mode on
       if(performanceMode){
         T(SCRW-40, barY+2, "PERF", C_OR, C_BK, 1);
       }
     }
 
-    // Stats overlay (top)
+    // overlay stats at the top if enabled
     if(showStats){
       char buf[32];
       snprintf(buf, 32, "FPS:%.0f", fps);
@@ -1276,11 +1324,13 @@ void loop(){
         T(SCRW-40, 4, "PERF", C_OR, C_BK, 1);
       }
       
+      // dev mode shows free heap (useful for debugging)
       if(devMode){
         snprintf(buf, 32, "HEAP:%u", ESP.getFreeHeap());
         T(4, 16, buf, C_DIM, C_BK, 1);
       }
       
+      // speedrun timer w ms precision
       if(speedrunMode){
         uint32_t ms = millis() - playStartMs;
         snprintf(buf, 32, "%02lu:%02lu.%03lu", 
@@ -1289,6 +1339,7 @@ void loop(){
       }
     }
 
+    // update fps counter once a second
     fpsN++;
     uint32_t now = millis();
     if(now - fpsT >= 1000){
@@ -1297,7 +1348,7 @@ void loop(){
       fpsT = now;
     }
     
-    // Auto-save every 10 seconds
+    // autosave every 10 sec so u dont lose stuff if battery dies
     if(now - lastSaveTime > 10000){
       saveSRAM(currentRomFile);
       lastSaveTime = now;
