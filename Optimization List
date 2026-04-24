@@ -7,9 +7,6 @@
 
                            PROJECT OVERVIEW
 =========================================================================
-I am building DASH OS, which is a GameBoy (DMG) emulator on ESP32-32E hardware
-with the following stack: 
-
 Hardware Configuration:
     • MCU: ESP32-D0WD-V3 @ 240MHz, 520KB SRAM (NO PSRAM) 
     • Display: ST7796 480x320 TFT via HSPI @ 80MHz SPI 
